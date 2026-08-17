@@ -106,7 +106,10 @@ function relinkStage(root, stagePrefix) {
     }
     const suffix = normalized.slice(match.index + match[0].length).replace(/^[\\\\/]+/, '')
     if (!suffix) {
-      throw new Error(`symlink target is the stage directory itself: ${link} -> ${target}`)
+      // pnpm's self-link (node_modules/.pnpm/node_modules/<stage-name> ->
+      // the stage directory) has no packaged equivalent; drop it.
+      rmSync(link)
+      continue
     }
     const inTree = path.join(root, suffix)
     rmSync(link)

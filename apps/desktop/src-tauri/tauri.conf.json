@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "DeepSeek Harness",
+  "version": "0.1.0-rc.6",
+  "identifier": "deepseek.harness.desktop",
+  "build": {
+    "beforeDevCommand": "node scripts/run-tauri.mjs vite frontend --port 1421",
+    "devUrl": "http://localhost:1421",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBN0JFOTM5MEIyN0UzOApSV1E0ZnJLUWs3Nm5Ea2U3S0s1RzZvZHpTTGJjaUVKTXlPNnZwWGJwMXBuWXBRdHdEcVJPa3Vucgo=",
+      "endpoints": [
+        "https://github.com/sansi-lcj/deepseek-harness-desktop/releases/latest/download/latest.json"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "resources": ["resources/server", "resources/node"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>DeepSeek Harness</title>
+  </head>
+  <body>
+    <main class="splash" aria-live="polite">
+      <img class="splash__logo" src="/favicon.svg" alt="" width="88" height="88" />
+      <h1 class="splash__title">DeepSeek Harness</h1>
+      <div class="splash__spinner" role="progressbar" aria-label="Starting the harness"></div>
+      <p id="status" class="splash__status">Starting the harness server…</p>
+      <p id="detail" class="splash__detail"></p>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

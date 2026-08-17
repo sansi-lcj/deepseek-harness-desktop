@@ -1,0 +1,167 @@
+name: build-desktop
+description: Build (and optionally publish) the DeepSeek Harness desktop app for one target
+inputs:
+  target:
+    description: Rust target triple to build for
+    required: true
+  node-arch:
+    description: Node.js distribution arch for cross builds (e.g. darwin-x64, win-arm64)
+    required: false
+    default: ''
+  install-linux-deps:
+    description: Install webkit2gtk and AppImage dependencies via apt
+    required: false
+    default: 'false'
+  apple-signing:
+    description: Import the Apple certificate and enable signing/notarization
+    required: false
+    default: 'false'
+  publish:
+    description: Publish a GitHub Release via tauri-action instead of a plain build
+    required: false
+    default: 'false'
+  tag-name:
+    description: Release tag when publishing
+    required: false
+    default: ''
+  release-name:
+    description: Release title when publishing
+    required: false
+    default: ''
+  release-body:
+    description: Release notes when publishing
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 24
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: apps/desktop/src-tauri
+        cache-directories: |
+          ~/.cargo/registry
+          ~/.cargo/git
+
+    - name: Install Rust target
+      shell: bash
+      run: rustup target add ${{ inputs.target }}
+
+    - name: Install Linux dependencies
+      if: inputs.install-linux-deps == 'true'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libfuse2
+
+    - name: Install desktop dependencies
+      shell: bash
+      run: cd apps/desktop && npm ci --workspaces=false --no-audit --no-fund
+
+    - name: Import Apple certificate (macOS)
+      if: inputs.apple-signing == 'true'
+      shell: bash
+      run: |
+        test -n "$APPLE_CERTIFICATE" || { echo "::error::apple-signing requires the APPLE_CERTIFICATE secret"; exit 1; }
+        test -n "$APPLE_CERTIFICATE_PASSWORD" || { echo "::error::apple-signing requires the APPLE_CERTIFICATE_PASSWORD secret"; exit 1; }
+        test -n "$KEYCHAIN_PASSWORD" || { echo "::error::apple-signing requires the KEYCHAIN_PASSWORD secret"; exit 1; }
+        CERT_PATH=$RUNNER_TEMP/build_certificate.p12
+        echo "$APPLE_CERTIFICATE" | base64 --decode -o "$CERT_PATH"
+        security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security set-keychain-settings -t 3600 -u build.keychain
+        security import "$CERT_PATH" -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+        # Resolve the identity from the imported certificate instead of trusting
+        # the APPLE_SIGNING_IDENTITY secret to match it byte-for-byte: the tauri
+        # CLI refuses to sign when the two disagree.
+        CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
+        CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
+        test -n "$CERT_ID" || { echo "::error::no Developer ID Application identity in the imported certificate"; exit 1; }
+        echo "APPLE_SIGNING_IDENTITY=$CERT_ID" >> "$GITHUB_ENV"
+        echo "Signing identity: $CERT_ID"
+
+    - name: Build the splash frontend
+      shell: bash
+      run: cd apps/desktop && ./node_modules/.bin/vite build frontend
+
+    - name: Stage the bundled server resources
+      shell: bash
+      run: node apps/desktop/scripts/build-resources.mjs
+
+    - name: Sign the bundled runtime binaries (macOS)
+      if: inputs.apple-signing == 'true'
+      shell: bash
+      run: |
+        find apps/desktop/src-tauri/resources -type f -exec file {} \; | grep Mach-O | cut -d: -f1 | while read f; do
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$f"
+          codesign --verify --strict --verbose=2 "$f"
+        done
+
+    - name: Publish GitHub Release
+      if: inputs.publish == 'true'
+      uses: tauri-apps/tauri-action@v1
+      with:
+        projectPath: apps/desktop/src-tauri
+        args: --target ${{ inputs.target }}
+        tagName: ${{ inputs.tag-name }}
+        releaseName: ${{ inputs.release-name }}
+        releaseBody: ${{ inputs.release-body }}
+        releaseDraft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        APPLE_SIGNING_IDENTITY: ${{ env.APPLE_SIGNING_IDENTITY }}
+        APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_PASSWORD }}
+        APPLE_ID: ${{ env.APPLE_ID }}
+        APPLE_PASSWORD: ${{ env.APPLE_PASSWORD }}
+        APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
+
+    - name: Notarize, staple, and verify the macOS DMG
+      if: inputs.publish == 'true' && inputs.apple-signing == 'true'
+      shell: bash
+      run: |
+        # tauri build --target <triple> outputs bundles under the per-target
+        # cargo directory, not target/release.
+        BUNDLE_DIR="apps/desktop/src-tauri/target/${{ inputs.target }}/release/bundle"
+        APP_DIR=$(ls -d "$BUNDLE_DIR"/macos/*.app | head -1)
+        DMG=$(ls "$BUNDLE_DIR"/dmg/*.dmg | head -1)
+        test -n "$APP_DIR" || { echo "::error::no .app bundle found under $BUNDLE_DIR/macos"; exit 1; }
+        test -n "$DMG" || { echo "::error::no .dmg found under $BUNDLE_DIR/dmg"; exit 1; }
+        test -n "$APPLE_ID" || { echo "::error::notarization requires the APPLE_ID secret"; exit 1; }
+        test -n "$APPLE_PASSWORD" || { echo "::error::notarization requires the APPLE_PASSWORD secret"; exit 1; }
+        test -n "$APPLE_TEAM_ID" || { echo "::error::notarization requires the APPLE_TEAM_ID secret"; exit 1; }
+        xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait --timeout 20m
+        xcrun stapler staple "$DMG"
+        xcrun stapler validate "$DMG"
+        xcrun stapler validate "$APP_DIR"
+        codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+        spctl --assess --type exec --verbose=2 "$APP_DIR"
+        gh release upload "${{ inputs.tag-name }}" "$DMG" --repo "$GITHUB_REPOSITORY" --clobber
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Build the desktop app
+      if: inputs.publish != 'true'
+      shell: bash
+      run: cd apps/desktop && ./node_modules/.bin/tauri build --target ${{ inputs.target }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+    - name: Upload app bundle
+      if: inputs.publish != 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: DeepSeek-Harness-${{ inputs.target }}
+        path: |
+          apps/desktop/src-tauri/target/${{ inputs.target }}/release/bundle/macos/*.app
+          apps/desktop/src-tauri/target/${{ inputs.target }}/release/bundle/dmg/*.dmg

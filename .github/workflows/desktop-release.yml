@@ -1,0 +1,63 @@
+name: desktop-release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+            apple-signing: 'true'
+          - runner: macos-latest
+            target: x86_64-apple-darwin
+            node-arch: darwin-x64
+            apple-signing: 'true'
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          # Windows arm64 deferred: cross-building NSIS on the x64 runner and
+          # staging the win-arm64 node runtime need a dedicated debug round.
+          # - runner: windows-latest
+          #   target: aarch64-pc-windows-msvc
+          #   node-arch: win-arm64
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            install-linux-deps: 'true'
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            install-linux-deps: 'true'
+    runs-on: ${{ matrix.runner }}
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      DSH_DESKTOP_NODE_ARCH: ${{ matrix.node-arch || '' }}
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/build-desktop
+        with:
+          target: ${{ matrix.target }}
+          node-arch: ${{ matrix.node-arch || '' }}
+          install-linux-deps: ${{ matrix.install-linux-deps || 'false' }}
+          apple-signing: ${{ matrix.apple-signing || 'false' }}
+          publish: 'true'
+          tag-name: ${{ github.ref_name }}
+          release-name: DeepSeek Harness ${{ github.ref_name }}
+          release-body: 'See the commit history: https://github.com/sansi-lcj/deepseek-harness-desktop/commits/master'

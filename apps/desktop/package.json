@@ -1,0 +1,25 @@
+{
+  "name": "@deepseek-ai/dsh-desktop",
+  "description": "DeepSeek Harness desktop shell: a Tauri 2 window that boots the dsh web server and hosts its browser UI.",
+  "version": "0.1.0-rc.6",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "desktop:dev": "node scripts/run-tauri.mjs tauri dev",
+    "desktop:build": "node scripts/run-tauri.mjs vite build frontend && node scripts/build-resources.mjs && node scripts/run-tauri.mjs tauri build",
+    "desktop:smoke": "DSH_DESKTOP_SMOKE=1 node scripts/run-tauri.mjs tauri dev",
+    "preflight": "node scripts/preflight.mjs",
+    "frontend:dev": "node scripts/run-tauri.mjs vite frontend --port 1421",
+    "frontend:build": "node scripts/run-tauri.mjs vite build frontend"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "typescript": "^6.0.3",
+    "vite": "^6.0.0"
+  },
+  "license": "MIT",
+  "trustedDependencies": ["esbuild"]
+}

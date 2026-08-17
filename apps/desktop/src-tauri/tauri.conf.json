@@ -16,7 +16,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBN0JFOTM5MEIyN0UzOApSV1E0ZnJLUWs3Nm5Ea2U3S0s1RzZvZHpTTGJjaUVKTXlPNnZwWGJwMXBuWXBRdHdEcVJPa3Vucgo=",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ5Q0ExOThBREIzQUM5NDMKUldSRHlUcmJpaG5LU2MxcG01VzdPSTE1b2FHZFpiRGk0Y0lKWUlFTHByNGJOdGt4Z0ZOaUNDeWsK",
       "endpoints": [
         "https://github.com/sansi-lcj/deepseek-harness-desktop/releases/latest/download/latest.json"
       ]

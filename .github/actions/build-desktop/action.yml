@@ -156,11 +156,8 @@ runs:
     - name: Build the desktop app
       if: inputs.publish != 'true'
       shell: bash
-      run: cd apps/desktop && ./node_modules/.bin/tauri build --target ${{ inputs.target }}
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-        TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
-        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # CI builds are unsigned smokes; signing belongs to the publish path.
+      run: cd apps/desktop && ./node_modules/.bin/tauri build --target ${{ inputs.target }} --no-sign
 
     - name: Upload app bundle
       if: inputs.publish != 'true'

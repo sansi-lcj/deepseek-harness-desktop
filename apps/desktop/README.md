@@ -25,7 +25,9 @@ On startup the shell checks the GitHub Releases endpoint configured in `tauri.co
 
 ## Releases (CI)
 
-Pushing a `v*` tag runs `.github/workflows/desktop-release.yml`: tauri-action builds on macOS, Windows, and Linux and publishes the GitHub Release assets plus the per-platform `latest.json` that the auto-updater reads. On macOS the shared composite action additionally runs the full signing/notarization chain:
+This repository is a fork of `deepseek-ai/deepseek-harness` whose default branch is `desktop-release`. `.github/workflows/sync-upstream.yml` merges upstream `master` into `desktop-release` daily (and on manual dispatch); every such push rebuilds the app through `.github/workflows/desktop.yml`, and a merge conflict opens an issue instead of pushing.
+
+Pushing a `desktop-v*` tag runs `.github/workflows/desktop-release.yml`: tauri-action builds on macOS, Windows, and Linux and publishes the GitHub Release assets plus the per-platform `latest.json` that the auto-updater reads. On macOS the shared composite action additionally runs the full signing/notarization chain:
 
 1. Import the Developer ID Application certificate into a dedicated keychain, unlock it for the job lifetime, and derive `APPLE_SIGNING_IDENTITY` from the imported certificate so signing always uses an identity that matches the certificate.
 2. Sign every Mach-O binary staged under `src-tauri/resources` (the bundled Node runtime and native addons) with hardened runtime and a secure timestamp, then verify each signature.
@@ -68,4 +70,4 @@ Artifacts land in `apps/desktop/src-tauri/target/release/bundle/macos/`: `DeepSe
 - The bundled server is the npm-published `@deepseek-ai/dsh@0.1.0-rc.6` (override with `DSH_DESKTOP_SERVER_VERSION`); dev mode (`pnpm desktop:dev`) runs this checkout's build instead.
 - Locally built bundles are unsigned; CI release builds are signed and notarized (see above).
 - One window; multi-server setups are out of scope.
-- npm blocks the `dsh-subprocess-local` postinstall, so `scripts/build-resources.mjs` restores the node-pty spawn-helper executable bit; a single-file server executable (see `scripts/build-exe-for-python-sdk.ts`) is the intended size-reduction follow-up.
+- The staged server install uses pnpm with the workspace's build-script allowlist and node-pty patch, so packaged behavior matches dev installs; a single-file server executable (see `scripts/build-exe-for-python-sdk.ts`) is the intended size-reduction follow-up.

@@ -6,7 +6,7 @@ permissions:
 on:
   push:
     tags:
-      - 'v*'
+      - 'desktop-v*'
   workflow_dispatch:
 
 jobs:
@@ -60,4 +60,4 @@ jobs:
           publish: 'true'
           tag-name: ${{ github.ref_name }}
           release-name: DeepSeek Harness ${{ github.ref_name }}
-          release-body: 'See the commit history: https://github.com/sansi-lcj/deepseek-harness-desktop/commits/master'
+          release-body: 'See the commit history: https://github.com/sansi-lcj/deepseek-harness-desktop/commits/desktop-release'

@@ -3,11 +3,15 @@
  * Assembles the self-contained server payload bundled into the desktop app:
  *
  * - resources/server: the published @deepseek-ai/dsh plus its full
- *   dependency closure, installed by npm in a staging directory OUTSIDE the
- *   workspace (inside the repo tree, npm would resolve the pnpm workspace
- *   links and fail on the `workspace:` protocol), then copied in verbatim.
+ *   dependency closure, installed by pnpm in a staging directory OUTSIDE the
+ *   workspace (inside the repo tree, pnpm would resolve the workspace links
+ *   and fail on the `workspace:` protocol), then copied in verbatim.
  * - resources/node: the Node.js executable that runs the server, so the
  *   packaged app needs nothing preinstalled on the target machine.
+ *
+ * The staged install mirrors the workspace install of the same packages: the
+ * staging package.json carries the same node-pty patch, the same build-script
+ * allowlist (node-pty, koffi, dsh-subprocess-local), and the @smithy/core pin.
  *
  * Run by tauri's beforeBuildCommand; also runnable standalone.
  * @module build-resources
@@ -21,6 +25,7 @@ import { fileURLToPath } from 'node:url'
 
 const DSH_VERSION = process.env.DSH_DESKTOP_SERVER_VERSION ?? '0.1.0-rc.6'
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const repoRoot = path.resolve(desktopRoot, '..')
 const resources = path.join(desktopRoot, 'src-tauri', 'resources')
 const serverDir = path.join(resources, 'server')
 const nodeDir = path.join(resources, 'node')
@@ -98,29 +103,41 @@ try {
       {
         name: 'dsh-server-stage',
         private: true,
-        overrides: {
-          '@smithy/core': '3.33.0',
+        pnpm: {
+          allowBuilds: {
+            'node-pty': true,
+            koffi: true,
+            '@deepseek-ai/dsh-subprocess-local': true,
+          },
+          patchedDependencies: {
+            'node-pty@1.1.0': 'patches/node-pty@1.1.0.patch',
+          },
+          overrides: {
+            '@smithy/core': '3.33.0',
+          },
         },
       },
       null,
       2,
     ),
   )
-  const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm'
-  run(npmBin, ['install', '--omit=dev', '--no-audit', '--no-fund', `@deepseek-ai/dsh@${DSH_VERSION}`], { cwd: stage })
+  // The workspace patch makes node-pty resolve its spawn helper next to the
+  // node executable first; the packaged server must behave like dev installs.
+  mkdirSync(path.join(stage, 'patches'), { recursive: true })
+  cpSync(
+    path.join(repoRoot, 'patches', 'node-pty@1.1.0.patch'),
+    path.join(stage, 'patches', 'node-pty@1.1.0.patch'),
+  )
+  const pnpmBin = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+  run(pnpmBin, ['install', '--prod', `@deepseek-ai/dsh@${DSH_VERSION}`], { cwd: stage })
   mkdirSync(resources, { recursive: true })
   cpSync(stage, serverDir, { recursive: true })
-  // npm's .bin entries are absolute symlinks into the staging directory,
+  // pnpm's .bin entries are absolute symlinks into the staging directory,
   // which is deleted right after this copy; the shell resolves the server
   // entry directly, so the dangling links are removed wholesale.
   rmSync(path.join(serverDir, 'node_modules', '.bin'), { recursive: true, force: true })
   mkdirSync(nodeDir, { recursive: true })
   stageNode(nodeDir)
-  if (process.platform !== 'win32') {
-    // npm blocks the dsh-subprocess-local postinstall that restores the
-    // executable bit on node-pty's macOS spawn helper; restore it here.
-    run('find', [serverDir, '-name', 'spawn-helper', '-exec', 'chmod', '+x', '{}', ';'])
-  }
   console.log(`[build-resources] dsh ${DSH_VERSION} + node staged into ${resources}`)
 } finally {
   rmSync(stage, { recursive: true, force: true })

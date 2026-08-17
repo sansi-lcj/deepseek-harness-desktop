@@ -28,6 +28,7 @@ function lintWorkflows() {
   const files = [
     '.github/workflows/desktop.yml',
     '.github/workflows/desktop-release.yml',
+    '.github/workflows/sync-upstream.yml',
     '.github/actions/build-desktop/action.yml',
   ]
   for (const rel of files) {
@@ -65,9 +66,9 @@ function lintActionScripts() {
 }
 
 function buildChain() {
-  const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm'
+  const pnpmBin = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
   console.log('[preflight] installing desktop dependencies')
-  run(npmBin, ['ci', '--workspaces=false', '--no-audit', '--no-fund'], { cwd: desktopRoot })
+  run(pnpmBin, ['install', '--frozen-lockfile', '--filter', '@deepseek-ai/dsh-desktop...'], { cwd: repoRoot })
   console.log('[preflight] building splash frontend')
   run(path.join(desktopRoot, 'node_modules/.bin/vite'), ['build', 'frontend'], { cwd: desktopRoot })
   console.log('[preflight] staging bundled server resources')

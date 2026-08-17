@@ -25,7 +25,9 @@ splash 渲染 `server-status` 事件(`starting` / `ready` / `exited`)。外部 h
 
 ## Release 发布(CI)
 
-推送 `v*` tag 触发 `.github/workflows/desktop-release.yml`:tauri-action 在 macOS / Windows / Linux 三平台构建并发布 GitHub Release 资产与供自动更新读取的各平台 `latest.json`。macOS 任务额外经由共享 composite action 走完整签名公证链:
+本仓库是 `deepseek-ai/deepseek-harness` 的 fork,默认分支为 `desktop-release`。`.github/workflows/sync-upstream.yml` 每天(也可手动触发)把上游 `master` 合并进 `desktop-release`;每次合并推送都会经 `.github/workflows/desktop.yml` 重新构建桌面应用,合并冲突时不推送并自动开 issue 提醒。
+
+推送 `desktop-v*` tag 触发 `.github/workflows/desktop-release.yml`:tauri-action 在 macOS / Windows / Linux 三平台构建并发布 GitHub Release 资产与供自动更新读取的各平台 `latest.json`。macOS 任务额外经由共享 composite action 走完整签名公证链:
 
 1. 把 Developer ID Application 证书导入独立钥匙串,解锁到任务结束,并从导入的证书中反推 `APPLE_SIGNING_IDENTITY`,保证签名身份与证书永远一致。
 2. 对 `src-tauri/resources` 下暂存的所有 Mach-O 二进制(内嵌 Node 运行时与原生扩展)逐一用硬运行时(hardened runtime)加时间戳签名,并逐个校验。
@@ -68,4 +70,4 @@ pnpm desktop:smoke    # 无头冒烟:加载服务器页面、报告并退出
 - 内嵌服务器是 npm 发布的 `@deepseek-ai/dsh@0.1.0-rc.6`(可用 `DSH_DESKTOP_SERVER_VERSION` 覆盖版本);开发模式(`pnpm desktop:dev`)运行的是本仓库构建产物。
 - 本地构建的包未签名;CI 的 Release 构建已签名并公证(见上文)。
 - 单窗口;多服务器实例场景不在范围内。
-- npm 会拦截 `dsh-subprocess-local` 的 postinstall,`scripts/build-resources.mjs` 已补回 node-pty spawn-helper 的执行位;未来改用单文件可执行路线(参见 `scripts/build-exe-for-python-sdk.ts`)可进一步缩小体积。
+- 内嵌服务器的暂存安装改用 pnpm,沿用 workspace 的构建脚本白名单与 node-pty 补丁,打包行为与开发安装一致;未来改用单文件可执行路线(参见 `scripts/build-exe-for-python-sdk.ts`)可进一步缩小体积。

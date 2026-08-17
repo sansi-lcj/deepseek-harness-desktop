@@ -2,7 +2,7 @@ name: desktop
 
 on:
   push:
-    branches: [master, main]
+    branches: [desktop-release]
   workflow_dispatch:
 
 jobs:

@@ -38,6 +38,7 @@ runs:
     - uses: actions/setup-node@v7
       with:
         node-version: 24
+        cache: pnpm
 
     - uses: Swatinem/rust-cache@v2
       with:
@@ -59,7 +60,9 @@ runs:
 
     - name: Install desktop dependencies
       shell: bash
-      run: cd apps/desktop && npm ci --workspaces=false --no-audit --no-fund
+      run: |
+        corepack enable
+        pnpm install --frozen-lockfile --filter @deepseek-ai/dsh-desktop...
 
     - name: Import Apple certificate (macOS)
       if: inputs.apple-signing == 'true'

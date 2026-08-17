@@ -1,0 +1,53 @@
+name: sync-upstream
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: desktop-release
+          fetch-depth: 0
+
+      - name: Fetch upstream master
+        run: |
+          git remote add upstream https://github.com/deepseek-ai/deepseek-harness.git
+          git fetch --no-tags upstream master
+
+      - name: Merge upstream master
+        id: merge
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git merge-base --is-ancestor upstream/master HEAD; then
+            echo 'up-to-date=true' >> "$GITHUB_OUTPUT"
+          elif git merge upstream/master --no-edit; then
+            echo 'merged=true' >> "$GITHUB_OUTPUT"
+          else
+            git diff --name-only --diff-filter=U > conflict-files.txt || true
+            git merge --abort
+            echo 'conflict=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Push merged desktop-release
+        if: steps.merge.outputs.merged == 'true'
+        run: git push origin desktop-release
+
+      - name: Report upstream merge conflict
+        if: steps.merge.outputs.conflict == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          FILES=$(tr '\n' ' ' < conflict-files.txt)
+          gh issue create \
+            --title 'desktop-release: upstream merge conflict' \
+            --body "Upstream master cannot be merged into desktop-release automatically. Conflicting paths: $FILES. Resolve manually: fetch upstream/master, merge into desktop-release, and push." || true

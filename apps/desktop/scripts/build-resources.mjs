@@ -94,32 +94,33 @@ rmSync(stage, { recursive: true, force: true })
 mkdirSync(stage, { recursive: true })
 
 try {
-  // Deterministic resolution: a transitive release once asked for the
-  // unpublished @smithy/core@^3.33.1; pin the latest published minor so a
-  // fresh install never depends on registry timing.
   writeFileSync(
     path.join(stage, 'package.json'),
-    JSON.stringify(
-      {
-        name: 'dsh-server-stage',
-        private: true,
-        pnpm: {
-          allowBuilds: {
-            'node-pty': true,
-            koffi: true,
-            '@deepseek-ai/dsh-subprocess-local': true,
-          },
-          patchedDependencies: {
-            'node-pty@1.1.0': 'patches/node-pty@1.1.0.patch',
-          },
-          overrides: {
-            '@smithy/core': '3.33.0',
-          },
-        },
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({ name: 'dsh-server-stage', private: true }, null, 2) + '\n',
+  )
+  // pnpm reads build-script policy, patches, and overrides from the
+  // workspace file (not from package.json), and pnpm 11 hard-fails on any
+  // unlisted build script. Mirror the repository's own policy so the staged
+  // server behaves like the dev install: allow the native packages we need,
+  // deny the reviewed no-op scripts, apply the node-pty spawn-helper patch,
+  // and pin @smithy/core (a transitive release once asked for the
+  // unpublished ^3.33.1; the pin keeps resolution independent of registry
+  // timing).
+  writeFileSync(
+    path.join(stage, 'pnpm-workspace.yaml'),
+    [
+      'packages: []',
+      'allowBuilds:',
+      "  'node-pty': true",
+      '  koffi: true',
+      "  '@deepseek-ai/dsh-subprocess-local': true",
+      "  '@google/genai': false",
+      '  protobufjs: false',
+      'patchedDependencies:',
+      "  'node-pty@1.1.0': patches/node-pty@1.1.0.patch",
+      'overrides:',
+      "  '@smithy/core': 3.33.0",
+    ].join('\n') + '\n',
   )
   // The workspace patch makes node-pty resolve its spawn helper next to the
   // node executable first; the packaged server must behave like dev installs.
@@ -138,6 +139,13 @@ try {
   rmSync(path.join(serverDir, 'node_modules', '.bin'), { recursive: true, force: true })
   mkdirSync(nodeDir, { recursive: true })
   stageNode(nodeDir)
+  if (process.platform !== 'win32') {
+    // node-pty's tarball ships every platform's spawn-helper without the
+    // exec bit, and the dsh-subprocess-local postinstall restores it only
+    // for the install host's arch; a cross build (e.g. x64 on an arm64
+    // runner) must restore the foreign-arch helper too.
+    run('find', [serverDir, '-name', 'spawn-helper', '-exec', 'chmod', '+x', '{}', ';'])
+  }
   console.log(`[build-resources] dsh ${DSH_VERSION} + node staged into ${resources}`)
 } finally {
   rmSync(stage, { recursive: true, force: true })

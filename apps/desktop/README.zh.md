@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-desktop
 
+[English](README.md) | 中文
+
 DeepSeek Harness 的桌面壳:一个 [Tauri 2](https://v2.tauri.app) 原生窗口,负责拉起 dsh web 服务器并承载浏览器 UI(`apps/web` 前端)。
 
 ## 技术栈
@@ -49,9 +51,9 @@ splash 渲染 `server-status` 事件(`starting` / `ready` / `exited`)。外部 h
 ```sh
 pnpm install
 pnpm run build
-pnpm desktop:dev      # 运行桌面壳(调试模式)
-pnpm desktop:build    # 打包 macOS .app
-pnpm desktop:smoke    # 无头冒烟:加载服务器页面、报告并退出
+pnpm desktop:dev      # run the desktop shell (debug)
+pnpm desktop:build    # bundle the macOS .app
+pnpm desktop:smoke    # headless smoke: load the server page, report, exit
 ```
 
 打包产物位于 `apps/desktop/src-tauri/target/release/bundle/macos/`:`DeepSeek Harness.app` 与 `DeepSeek Harness_0.1.0-rc.6_aarch64.dmg`。双击即用,自带 Node 运行时、dsh 服务器与 Web UI,目标机器无需安装任何东西。

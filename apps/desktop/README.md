@@ -1,5 +1,7 @@
 # @deepseek-ai/dsh-desktop
 
+English | [中文](README.zh.md)
+
 Desktop shell for DeepSeek Harness: a [Tauri 2](https://v2.tauri.app) window that boots the dsh web server and hosts the browser UI (the `apps/web` frontend).
 
 ## Stack

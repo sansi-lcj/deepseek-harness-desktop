@@ -22,7 +22,7 @@ Get the latest builds from [GitHub Releases](https://github.com/sansi-lcj/deepse
 - Auto-update: checks GitHub Releases on startup, prompts, installs, and restarts
 - Resilient: server restarts up to 3 times on unexpected exit; the runtime lives in App Support, so replacing the bundle never breaks a running instance
 - Desktop behavior: single instance, native window, external links open in the default browser
-- Cross-platform CI: pushing a `v*` tag builds, signs (and notarizes on macOS), and publishes all three platforms
+- Cross-platform CI: pushing a `desktop-v*` tag builds, signs (and notarizes on macOS), and publishes all three platforms
 
 ## Stack
 
@@ -48,11 +48,11 @@ See [apps/desktop/README.md](apps/desktop/README.md) for the shell architecture,
 
 ## Releases and auto-update
 
-Push a `v*` tag and `.github/workflows/desktop-release.yml` builds on macOS, Windows, and Linux, then publishes the GitHub Release with per-platform assets and a merged `latest.json` that the in-app updater reads. Required secrets: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `KEYCHAIN_PASSWORD`.
+Push a `desktop-v*` tag and `.github/workflows/desktop-release.yml` builds on macOS, Windows, and Linux, then publishes the GitHub Release with per-platform assets and a merged `latest.json` that the in-app updater reads. Required secrets: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`, `KEYCHAIN_PASSWORD`.
 
 ## Upstream
 
-This repository tracks the official [deepseek-ai/DeepSeek-Harness](https://github.com/deepseek-ai/DeepSeek-Harness) master and adds `apps/desktop/`. The bundled server is the npm-published `@deepseek-ai/dsh` release (override with `DSH_DESKTOP_SERVER_VERSION`).
+This repository is a fork of [deepseek-ai/DeepSeek-Harness](https://github.com/deepseek-ai/DeepSeek-Harness) whose default branch is `desktop-release`. `.github/workflows/sync-upstream.yml` merges upstream master into `desktop-release` daily (or on manual dispatch) and rebuilds the app; the fork adds `apps/desktop/`. The bundled server is the npm-published `@deepseek-ai/dsh` release (override with `DSH_DESKTOP_SERVER_VERSION`).
 
 ## License
 

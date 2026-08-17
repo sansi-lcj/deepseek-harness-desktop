@@ -22,7 +22,7 @@
 - 自动更新:启动时检查 GitHub Releases,弹窗确认后下载安装并自动重启
 - 韧性:服务器意外退出自动重启(最多 3 次);运行目录位于应用支持目录,替换安装包不影响运行中的实例
 - 桌面体验:单实例、原生窗口、外部链接在默认浏览器打开
-- 全平台 CI:推送 `v*` tag 即自动构建、签名(macOS 含公证)并发布三平台产物
+- 全平台 CI:推送 `desktop-v*` tag 即自动构建、签名(macOS 含公证)并发布三平台产物
 
 ## 技术栈
 
@@ -37,22 +37,22 @@ git clone git@github.com:sansi-lcj/deepseek-harness-desktop.git
 cd deepseek-harness-desktop
 pnpm install
 pnpm run build
-pnpm desktop:dev      # 运行桌面壳(调试模式)
-pnpm desktop:build    # 本地打包
-pnpm desktop:smoke    # 无头冒烟测试
+pnpm desktop:dev      # run the desktop shell (debug)
+pnpm desktop:build    # bundle locally
+pnpm desktop:smoke    # headless smoke test
 ```
 
 前置条件:Node.js(^22.19 或 >=24)、pnpm、Rust stable;macOS 需要 Xcode Command Line Tools。
 
-壳的架构、环境变量覆盖与发布流水线见 [apps/desktop/README.zh.md](apps/desktop/README.zh.md)。
+壳的架构、环境变量覆盖与发布流水线见 [apps/desktop/README.md](apps/desktop/README.md)。
 
 ## 发布与自动更新
 
-推送 `v*` tag 会触发 `.github/workflows/desktop-release.yml` 在 macOS / Windows / Linux 三平台构建并发布 GitHub Release,同时合并各平台的 `latest.json` 供应用内更新器读取。所需 secrets:`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`、`APPLE_CERTIFICATE`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`、`APPLE_ID`、`APPLE_PASSWORD`、`APPLE_TEAM_ID`、`KEYCHAIN_PASSWORD`。
+推送 `desktop-v*` tag 会触发 `.github/workflows/desktop-release.yml` 在 macOS / Windows / Linux 三平台构建并发布 GitHub Release,同时合并各平台的 `latest.json` 供应用内更新器读取。所需 secrets:`TAURI_SIGNING_PRIVATE_KEY`、`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`、`APPLE_CERTIFICATE`、`APPLE_CERTIFICATE_PASSWORD`、`APPLE_SIGNING_IDENTITY`、`APPLE_ID`、`APPLE_PASSWORD`、`APPLE_TEAM_ID`、`KEYCHAIN_PASSWORD`。
 
 ## 与上游的关系
 
-本仓库跟踪官方 [deepseek-ai/DeepSeek-Harness](https://github.com/deepseek-ai/DeepSeek-Harness) 的 master,并新增 `apps/desktop/`。内嵌服务器使用 npm 发布的 `@deepseek-ai/dsh`(可用 `DSH_DESKTOP_SERVER_VERSION` 覆盖版本)。
+本仓库是 [deepseek-ai/DeepSeek-Harness](https://github.com/deepseek-ai/DeepSeek-Harness) 的 fork,默认分支为 `desktop-release`;`.github/workflows/sync-upstream.yml` 每天(或手动触发)把上游 master 合并进 `desktop-release` 并重新构建,fork 在其上新增 `apps/desktop/`。内嵌服务器使用 npm 发布的 `@deepseek-ai/dsh`(可用 `DSH_DESKTOP_SERVER_VERSION` 覆盖版本)。
 
 ## 许可证
 

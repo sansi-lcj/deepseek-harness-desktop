@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url'
 
 const DSH_VERSION = process.env.DSH_DESKTOP_SERVER_VERSION ?? '0.1.0-rc.6'
 const desktopRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const repoRoot = path.resolve(desktopRoot, '..')
+const repoRoot = path.resolve(desktopRoot, '..', '..')
 const resources = path.join(desktopRoot, 'src-tauri', 'resources')
 const serverDir = path.join(resources, 'server')
 const nodeDir = path.join(resources, 'node')

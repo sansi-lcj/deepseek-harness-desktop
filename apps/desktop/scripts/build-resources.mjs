@@ -18,7 +18,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -79,9 +79,17 @@ function stageNode(nodeDir) {
  * staging directory. The copy into resources/server would keep those
  * absolute targets pointing at the now-deleted stage, so rewrite every such
  * link to the relative path of the same target inside the copied tree.
+ * Comparison is normalized (separators, case, extended-path prefixes) so
+ * Windows link targets match the stage path they were resolved through.
  */
 function relinkStage(root, stagePrefix) {
-  const prefixes = [realpathSync(stagePrefix), stagePrefix]
+  const normalize = (p) =>
+    path
+      .normalize(p)
+      .replace(/^\\\\\?\\/, '')
+      .replace(/^\\\\\.\\/, '')
+      .toLowerCase()
+  const prefixes = [realpathSync(stagePrefix), stagePrefix].map(normalize)
   const links = []
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -95,13 +103,15 @@ function relinkStage(root, stagePrefix) {
   for (const link of links) {
     const target = readlinkSync(link)
     if (!path.isAbsolute(target)) continue
-    const base = prefixes.find((prefix) => target.startsWith(prefix))
+    const normalized = normalize(target)
+    const base = prefixes.find((prefix) => normalized.startsWith(prefix))
     if (!base) {
       throw new Error(`absolute symlink outside the staging tree: ${link} -> ${target}`)
     }
-    const inTree = path.join(root, target.slice(base.length))
+    const inTree = path.join(root, normalized.slice(base.length))
     rmSync(link)
-    symlinkSync(path.relative(path.dirname(link), inTree), link)
+    // Windows needs the link type spelled out; stat the in-tree target.
+    symlinkSync(path.relative(path.dirname(link), inTree), link, statSync(inTree).isDirectory() ? 'dir' : 'file')
     rewritten += 1
   }
   if (rewritten > 0) console.log(`[build-resources] relinked ${rewritten} pnpm symlinks`)

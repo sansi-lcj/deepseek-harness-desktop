@@ -79,17 +79,13 @@ function stageNode(nodeDir) {
  * staging directory. The copy into resources/server would keep those
  * absolute targets pointing at the now-deleted stage, so rewrite every such
  * link to the relative path of the same target inside the copied tree.
- * Comparison is normalized (separators, case, extended-path prefixes) so
- * Windows link targets match the stage path they were resolved through.
+ * The stage directory's own name (dsh-server-stage-<pid>) is the mapping
+ * key: everything after it in the link target is the in-tree suffix, which
+ * keeps the comparison independent of drive letters, case, slashes, and
+ * extended-path prefixes on Windows.
  */
 function relinkStage(root, stagePrefix) {
-  const normalize = (p) =>
-    path
-      .normalize(p)
-      .replace(/^\\\\\?\\/, '')
-      .replace(/^\\\\\.\\/, '')
-      .toLowerCase()
-  const prefixes = [realpathSync(stagePrefix), stagePrefix].map(normalize)
+  const marker = new RegExp(escapeRegex(path.basename(stagePrefix)) + '([\\\\/]|$)', 'i')
   const links = []
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -103,18 +99,26 @@ function relinkStage(root, stagePrefix) {
   for (const link of links) {
     const target = readlinkSync(link)
     if (!path.isAbsolute(target)) continue
-    const normalized = normalize(target)
-    const base = prefixes.find((prefix) => normalized.startsWith(prefix))
-    if (!base) {
+    const normalized = path.normalize(target)
+    const match = normalized.match(marker)
+    if (!match) {
       throw new Error(`absolute symlink outside the staging tree: ${link} -> ${target}`)
     }
-    const inTree = path.join(root, normalized.slice(base.length))
+    const suffix = normalized.slice(match.index + match[0].length).replace(/^[\\\\/]+/, '')
+    if (!suffix) {
+      throw new Error(`symlink target is the stage directory itself: ${link} -> ${target}`)
+    }
+    const inTree = path.join(root, suffix)
     rmSync(link)
     // Windows needs the link type spelled out; stat the in-tree target.
     symlinkSync(path.relative(path.dirname(link), inTree), link, statSync(inTree).isDirectory() ? 'dir' : 'file')
     rewritten += 1
   }
   if (rewritten > 0) console.log(`[build-resources] relinked ${rewritten} pnpm symlinks`)
+}
+
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function run(cmd, args, opts) {

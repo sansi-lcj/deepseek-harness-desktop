@@ -12,13 +12,16 @@
  * The staged install mirrors the workspace install of the same packages: the
  * staging package.json carries the same node-pty patch, the same build-script
  * allowlist (node-pty, koffi, dsh-subprocess-local), and the @smithy/core pin.
+ * The hoisted node linker flattens node_modules like npm does, so the copied
+ * tree contains real files only — the bundle copiers in the .app, deb, and
+ * NSIS bundlers skip or reject symlinks in resources.
  *
  * Run by tauri's beforeBuildCommand; also runnable standalone.
  * @module build-resources
  */
 
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -74,61 +77,6 @@ function stageNode(nodeDir) {
   console.log(`[build-resources] staged node ${NODE_ARCH} for ${distPlatform} target`)
 }
 
-/**
- * pnpm links the virtual store with absolute symlinks resolved through the
- * staging directory. The copy into resources/server would keep those
- * absolute targets pointing at the now-deleted stage, so rewrite every such
- * link to the relative path of the same target inside the copied tree.
- * The stage directory's own name (dsh-server-stage-<pid>) is the mapping
- * key: everything after it in the link target is the in-tree suffix, which
- * keeps the comparison independent of drive letters, case, slashes, and
- * extended-path prefixes on Windows.
- */
-function relinkStage(root, stagePrefix) {
-  const marker = new RegExp(escapeRegex(path.basename(stagePrefix)) + '([\\\\/]|$)', 'i')
-  const links = []
-  const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name)
-      if (entry.isDirectory()) walk(full)
-      else if (entry.isSymbolicLink()) links.push(full)
-    }
-  }
-  walk(root)
-  let rewritten = 0
-  for (const link of links) {
-    const target = readlinkSync(link)
-    if (!path.isAbsolute(target)) continue
-    const normalized = path.normalize(target)
-    const match = normalized.match(marker)
-    if (!match) {
-      throw new Error(`absolute symlink outside the staging tree: ${link} -> ${target}`)
-    }
-    const suffix = normalized.slice(match.index + match[0].length).replace(/^[\\\\/]+/, '')
-    if (!suffix) {
-      // pnpm's self-link (node_modules/.pnpm/node_modules/<stage-name> ->
-      // the stage directory) has no packaged equivalent; drop it.
-      rmSync(link)
-      continue
-    }
-    const inTree = path.join(root, suffix)
-    rmSync(link)
-    if (process.platform === 'win32') {
-      // The NSIS bundler cannot package symlinks; materialize the target
-      // as real files, which is also how the previous npm layout shipped.
-      cpSync(inTree, link, { recursive: true })
-    } else {
-      symlinkSync(path.relative(path.dirname(link), inTree), link, statSync(inTree).isDirectory() ? 'dir' : 'file')
-    }
-    rewritten += 1
-  }
-  if (rewritten > 0) console.log(`[build-resources] relinked ${rewritten} pnpm symlinks`)
-}
-
-function escapeRegex(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 function run(cmd, args, opts) {
   let result
   if (process.platform === 'win32') {
@@ -177,22 +125,23 @@ try {
       "  '@smithy/core': 3.33.0",
     ].join('\n') + '\n',
   )
-  // The workspace patch makes node-pty resolve its spawn helper next to the
-  // node executable first; the packaged server must behave like dev installs.
   mkdirSync(path.join(stage, 'patches'), { recursive: true })
   cpSync(
     path.join(repoRoot, 'patches', 'node-pty@1.1.0.patch'),
     path.join(stage, 'patches', 'node-pty@1.1.0.patch'),
   )
   const pnpmBin = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-  run(pnpmBin, ['install', '--prod', `@deepseek-ai/dsh@${DSH_VERSION}`], { cwd: stage })
+  run(
+    pnpmBin,
+    ['install', '--prod', '--config.node-linker=hoisted', `@deepseek-ai/dsh@${DSH_VERSION}`],
+    { cwd: stage },
+  )
   mkdirSync(resources, { recursive: true })
   cpSync(stage, serverDir, { recursive: true })
   // pnpm's .bin entries are absolute symlinks into the staging directory,
   // which is deleted right after this copy; the shell resolves the server
   // entry directly, so the dangling links are removed wholesale.
   rmSync(path.join(serverDir, 'node_modules', '.bin'), { recursive: true, force: true })
-  relinkStage(serverDir, stage)
   mkdirSync(nodeDir, { recursive: true })
   stageNode(nodeDir)
   if (process.platform !== 'win32') {

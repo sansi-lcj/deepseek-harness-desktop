@@ -21,7 +21,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -75,6 +75,20 @@ function stageNode(nodeDir) {
   }
   cpSync(nodeBin, path.join(nodeDir, nodeName))
   console.log(`[build-resources] staged node ${NODE_ARCH} for ${distPlatform} target`)
+}
+
+/** Recursively delete every `.bin` directory under root. */
+function removeBinDirs(root) {
+  const stack = [root]
+  while (stack.length > 0) {
+    const dir = stack.pop()
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue
+      const full = path.join(dir, entry.name)
+      if (entry.name === '.bin') rmSync(full, { recursive: true, force: true })
+      else stack.push(full)
+    }
+  }
 }
 
 function run(cmd, args, opts) {
@@ -138,10 +152,11 @@ try {
   )
   mkdirSync(resources, { recursive: true })
   cpSync(stage, serverDir, { recursive: true })
-  // pnpm's .bin entries are absolute symlinks into the staging directory,
-  // which is deleted right after this copy; the shell resolves the server
-  // entry directly, so the dangling links are removed wholesale.
-  rmSync(path.join(serverDir, 'node_modules', '.bin'), { recursive: true, force: true })
+  // pnpm's .bin entries (top-level and nested under conflicting packages)
+  // are absolute symlinks into the staging directory, which is deleted
+  // right after this copy; the shell resolves the server entry directly, so
+  // every .bin directory is removed wholesale.
+  removeBinDirs(path.join(serverDir, 'node_modules'))
   mkdirSync(nodeDir, { recursive: true })
   stageNode(nodeDir)
   if (process.platform !== 'win32') {

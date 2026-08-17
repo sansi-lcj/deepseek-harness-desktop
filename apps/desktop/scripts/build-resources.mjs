@@ -18,7 +18,7 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -72,6 +72,39 @@ function stageNode(nodeDir) {
   }
   cpSync(nodeBin, path.join(nodeDir, nodeName))
   console.log(`[build-resources] staged node ${NODE_ARCH} for ${distPlatform} target`)
+}
+
+/**
+ * pnpm links the virtual store with absolute symlinks resolved through the
+ * staging directory. The copy into resources/server would keep those
+ * absolute targets pointing at the now-deleted stage, so rewrite every such
+ * link to the relative path of the same target inside the copied tree.
+ */
+function relinkStage(root, stagePrefix) {
+  const prefixes = [realpathSync(stagePrefix), stagePrefix]
+  const links = []
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (entry.isSymbolicLink()) links.push(full)
+    }
+  }
+  walk(root)
+  let rewritten = 0
+  for (const link of links) {
+    const target = readlinkSync(link)
+    if (!path.isAbsolute(target)) continue
+    const base = prefixes.find((prefix) => target.startsWith(prefix))
+    if (!base) {
+      throw new Error(`absolute symlink outside the staging tree: ${link} -> ${target}`)
+    }
+    const inTree = path.join(root, target.slice(base.length))
+    rmSync(link)
+    symlinkSync(path.relative(path.dirname(link), inTree), link)
+    rewritten += 1
+  }
+  if (rewritten > 0) console.log(`[build-resources] relinked ${rewritten} pnpm symlinks`)
 }
 
 function run(cmd, args, opts) {
@@ -137,6 +170,7 @@ try {
   // which is deleted right after this copy; the shell resolves the server
   // entry directly, so the dangling links are removed wholesale.
   rmSync(path.join(serverDir, 'node_modules', '.bin'), { recursive: true, force: true })
+  relinkStage(serverDir, stage)
   mkdirSync(nodeDir, { recursive: true })
   stageNode(nodeDir)
   if (process.platform !== 'win32') {

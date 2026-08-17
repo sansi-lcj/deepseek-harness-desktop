@@ -113,8 +113,13 @@ function relinkStage(root, stagePrefix) {
     }
     const inTree = path.join(root, suffix)
     rmSync(link)
-    // Windows needs the link type spelled out; stat the in-tree target.
-    symlinkSync(path.relative(path.dirname(link), inTree), link, statSync(inTree).isDirectory() ? 'dir' : 'file')
+    if (process.platform === 'win32') {
+      // The NSIS bundler cannot package symlinks; materialize the target
+      // as real files, which is also how the previous npm layout shipped.
+      cpSync(inTree, link, { recursive: true })
+    } else {
+      symlinkSync(path.relative(path.dirname(link), inTree), link, statSync(inTree).isDirectory() ? 'dir' : 'file')
+    }
     rewritten += 1
   }
   if (rewritten > 0) console.log(`[build-resources] relinked ${rewritten} pnpm symlinks`)
